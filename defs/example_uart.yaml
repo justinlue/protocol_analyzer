@@ -1,0 +1,83 @@
+# In-house UART protocol: frame layout per DESIGN.md §6.7.
+# Commands 0x01-0x04 are made-up examples exercising the payload vocabulary
+# (DESIGN.md §6.5) until the real command set is supplied.
+
+protocol: example_uart
+description: In-house module-to-module UART protocol (example commands)
+versions: [1]
+
+enums:
+  modules:
+    0x01: MCU
+    0x10: MotorCtrl
+    0x20: IOBoard
+    0x30: HMI
+  motor_state:
+    0: stopped
+    1: running
+    2: fault
+
+types:
+  channel_reading:
+    - {name: channel, type: u1}
+    - {name: raw, type: s2le, scale: 0.1, unit: "°C"}
+
+frame:
+  - {name: preamble,   type: u2le, role: sync, value: 0x55AA}
+  - {name: version,    type: u1}
+  - {name: setting,    type: u1}                 # proprietary placeholder, shown raw
+  - {name: src_module, type: u1, enum: modules}
+  - {name: dst_module, type: u1, enum: modules}
+  - {name: src_trans,  type: u1}
+  - {name: dst_trans,  type: u1}
+  - {name: cmd_id,     type: u1}
+  - {name: data_len,   type: u2le, role: length, of: data, max: 1024}
+  - {name: data,       role: payload, dispatch: cmd_id}
+  - {name: crc,        type: u2le, role: crc, algo: crc16_modbus, covers: [version, data]}
+
+commands:
+  # Overloaded cmd: empty request from the MCU, version info in the response.
+  0x01:
+    name: get_info
+    variants:
+      - when: {src_module: MCU}
+        fields: []
+      - fields:
+          - {name: fw_major, type: u1}
+          - {name: fw_minor, type: u1}
+          - {name: build,    type: u2le}
+          - {name: serial,   type: str, size: 16}
+
+  # Enum, bitfield, scaling, float.
+  0x02:
+    name: motor_status
+    fields:
+      - {name: state, type: u1, enum: motor_state}
+      - name: flags
+        type: u1
+        bits: {enabled: 0, reverse: 1, mode: 2-4, fault: 7}
+      - {name: speed,       type: s2le, unit: rpm}
+      - {name: current,     type: u2le, scale: 0.01, unit: A}
+      - {name: temperature, type: u1, offset: -40, unit: "°C"}
+      - {name: setpoint,    type: f4le, unit: rpm}
+
+  # Array with its count taken from an earlier field, of a nested struct.
+  0x03:
+    name: channel_readings
+    fields:
+      - {name: count,    type: u1}
+      - {name: readings, type: channel_reading, count: count}
+
+  # Inline enum, rest-of-data string.
+  0x04:
+    name: log_message
+    fields:
+      - {name: level,        type: u1, enum: {0: debug, 1: info, 2: warn, 3: error}}
+      - {name: timestamp_ms, type: u4le}
+      - {name: text,         type: str, size: rest}
+
+  # Array until end of data.
+  0x05:
+    name: raw_samples
+    fields:
+      - {name: samples, type: u2le, count: eos}
