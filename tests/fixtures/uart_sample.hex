@@ -1,0 +1,4 @@
+# timestamp channel bytes
+0.000100 rx AA 55 01
+0.000200 tx aa55
+0.000300 rx 00 0010   # trailing comment
