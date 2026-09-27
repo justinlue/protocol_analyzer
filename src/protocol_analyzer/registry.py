@@ -33,10 +33,21 @@ def _canopen(arg: str, params: dict, base_dir: Path) -> Decoder:
     return CanopenDecoder(ods)
 
 
+def _uart(arg: str, params: dict, base_dir: Path) -> Decoder:
+    from .uart.decoder import UartDecoder
+    from .uart.definition import load_definition
+
+    if not arg:
+        raise SessionError("the uart decoder needs a Definition: --decoder uart:<definition.yaml>")
+    return UartDecoder(load_definition(base_dir / arg))
+
+
 REGISTRY: dict[str, DecoderInfo] = {
     "can": DecoderInfo("can", "can", "CAN/CAN-FD frame layer: id, flags, dlc, data", _can),
     "canopen": DecoderInfo("canopen", "canopen [--eds NODE=PATH]",
                            "CANopen: NMT, SYNC, TIME, EMCY, heartbeat, SDO, PDO", _canopen),
+    "uart": DecoderInfo("uart", "uart:<definition.yaml>",
+                        "proprietary UART, framed and decoded by a YAML Definition", _uart),
 }
 
 

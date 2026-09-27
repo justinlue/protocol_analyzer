@@ -1,6 +1,6 @@
 # Protocol Analyzer: Design
 
-Status: agreed design, pre-implementation (2026-09-26). Vocabulary is defined in [CONTEXT.md](CONTEXT.md).
+Status: v1 implemented per docs/superpowers/plans/2026-09-26-protocol-analyzer-v1.md. Vocabulary is defined in [CONTEXT.md](CONTEXT.md).
 
 ## 1. Goal and scope
 
@@ -60,6 +60,8 @@ Bad data is **always shown, never dropped**. A failed frame becomes a Message wi
 | CAN | candump `.log`, Vector `.asc` | Read via python-can. `.blf`/`.trc` are cheap to add later. |
 | UART | raw `.bin`, timestamped hex text | `.bin` has no timestamps, so Messages carry byte offsets. |
 
+Hex text format: one chunk per line, `<seconds> <channel> <hex bytes…>`; `#` starts a comment. A raw `.bin` is one Channel named `uart0`.
+
 UART links are **full-duplex**, and each direction is its own Channel with its own framer. Pairing requests with responses is deferred. When it lands, the src/dst transaction ids are the pairing key.
 
 ## 5. CANopen decoder (v1)
@@ -99,7 +101,7 @@ UART links are **full-duplex**, and each direction is its own Channel with its o
 Our own YAML schema, validated on load with clear error messages. It borrows Kaitai Struct's type names so it feels familiar. One Definition per protocol. Per-version differences are expressed with `when:`.
 
 A Definition has these top-level keys:
-- `protocol`, `description`, `versions`
+- `protocol`, `description`, `versions`, `show` (frame fields that lead each table row)
 - `enums`: named value→name tables
 - `types`: reusable nested structs
 - `crc`: named parameter sets, in addition to the built-in presets
@@ -115,7 +117,7 @@ The frame is a general ordered field list, not a hard-wired header shape. Framin
 | `sync` | Constant `value`. The framer scans the stream for its wire bytes. |
 | `length` | Byte count of the field named in `of:`. `max:` bounds it; a larger value is treated as a false sync. |
 | `payload` | Variable-length data. `dispatch:` names the field that selects the Command. |
-| `crc` | Checksum. `algo:` is a preset or a Definition-local name. `covers: [first, last]` is an inclusive field range. |
+| `crc` | Checksum. `algo:` is a preset or a Definition-local name, or `hook: file.py:function` computes it. `covers: [first, last]` is an inclusive field range. |
 
 Optional idle-gap framing (`gap_ms`) may be declared. It requires a timestamped Capture and errors clearly on one without timestamps.
 
@@ -152,6 +154,7 @@ There is no byte stuffing. Payloads may legitimately contain the sync bytes, and
 | Bytes / strings | `bytes` or `str`, with `size: N \| <field> \| rest`; `strz` for zero-terminated; `encoding:` (default ascii) |
 | Arrays | `count: N \| <field> \| eos` on any field |
 | Nested structs | `type:` a name from `types` |
+| Hooks | `hook: file.py:function` instead of `type:`; it receives the remaining data and returns `(value, bytes_consumed)` |
 
 **Deferred:** conditional fields (present only when a flag is set). They will be added when a real Command needs them.
 
