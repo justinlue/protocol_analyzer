@@ -75,3 +75,21 @@ def test_session_file(capsys, tmp_path):
     assert code == 0 and len(lines) == 7  # the error frame's channel "?" is unbound
     code, _, err = run(capsys, "decode", "--session", str(tmp_path / "s.yaml"), "--decoder", "can")
     assert code == 2 and "cannot be combined" in err
+
+
+def test_capture_flag_with_session_resolves_against_the_working_directory(capsys, tmp_path, monkeypatch):
+    (tmp_path / "cap.log").write_bytes((FIX / "basic.log").read_bytes())
+    (tmp_path / "sub").mkdir()
+    (tmp_path / "sub" / "s.yaml").write_text("capture: other.log\nchannels:\n  can0: {decoder: can}\n")
+    monkeypatch.chdir(tmp_path)
+    code, lines, err = run(capsys, "decode", "cap.log", "--session", "sub/s.yaml")
+    assert code == 0, err
+    assert len(lines) == 7
+
+
+def test_time_filter_on_an_untimed_capture_is_refused(capsys, tmp_path):
+    cap = tmp_path / "x.bin"
+    cap.write_bytes(b"\x00")
+    defn = Path(__file__).parent.parent / "defs" / "example_uart.yaml"
+    code, _, err = run(capsys, "decode", str(cap), "--decoder", f"uart:{defn}", "--time", "0:1")
+    assert code == 2 and "needs a timestamped capture" in err

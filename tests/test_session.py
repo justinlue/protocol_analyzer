@@ -86,3 +86,13 @@ def test_bindings_are_validated_before_reading_even_an_empty_capture():
     s = session_from_args(FIX / "empty.log", "canopen", ["5=nothere.eds"])
     with pytest.raises(Exception, match="cannot read EDS"):
         list(Analysis(s).messages())
+
+
+@pytest.mark.parametrize("text, match", [
+    ("capture: a.log\nchannels: {1: {decoder: can, edss: {}}}\n", r"unknown key\(s\) edss"),
+    ("capture: a.log\nchannels: {1: {decoder: canopen, eds: {200: a.eds}}}\n", "1-127"),
+])
+def test_session_binding_keys_and_node_ids_are_checked(tmp_path, text, match):
+    (tmp_path / "s.yaml").write_text(text)
+    with pytest.raises(SessionError, match=match):
+        load_session(tmp_path / "s.yaml")

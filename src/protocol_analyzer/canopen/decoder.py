@@ -57,7 +57,7 @@ class CanopenDecoder:
         return out
 
     def flush(self) -> list[Item]:
-        return []
+        return self._sdo.flush()
 
     def _decode(self, service: str, node: int | None, frame: CanFrame) -> list[Message]:
         if service == "nmt":
@@ -113,7 +113,7 @@ class CanopenDecoder:
         d = frame.data
         if len(d) < 3:
             m = canopen_message(frame, "emcy", node, [_raw(d)])
-            m.error(f"EMCY needs 8 bytes, got {len(d)}")
+            m.error(f"EMCY needs at least 3 bytes, got {len(d)}")
             return m
         code = int.from_bytes(d[0:2], "little")
         register = d[2]

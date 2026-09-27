@@ -48,3 +48,11 @@ def test_jsonl_line_round_trips_the_field_tree():
         {"name": "gone", "missing": True},
     ]
     assert d["diagnostics"] == [{"level": "error", "text": "bad"}]
+
+
+def test_jsonl_writes_non_finite_floats_as_strings():
+    m = Message("u", "cmd", "rx", start=1.0,
+                fields=[Field("a", float("nan")), Field("b", float("inf")), Field("c", float("-inf"))])
+    line = jsonl_line(m, t0=1.0)
+    assert "NaN," not in line and "Infinity," not in line
+    assert [f["value"] for f in json.loads(line)["fields"]] == ["NaN", "Infinity", "-Infinity"]

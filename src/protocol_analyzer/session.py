@@ -79,6 +79,9 @@ def _binding(path: Path, channel: str, spec: object) -> Binding:
     decoders = [spec["decoder"]] if isinstance(spec["decoder"], str) else spec["decoder"]
     if not isinstance(decoders, list) or not decoders or not all(isinstance(d, str) for d in decoders):
         raise SessionError(f"{where}.decoder: expected a decoder name or a list of them")
+    extra = set(map(str, spec)) - {"decoder", "eds"}
+    if extra:
+        raise SessionError(f"{where}: unknown key(s) {', '.join(sorted(extra))}")
     params = {k: v for k, v in spec.items() if k != "decoder"}
     if "eds" in params:
         eds = params["eds"]
@@ -88,4 +91,7 @@ def _binding(path: Path, channel: str, spec: object) -> Binding:
             params["eds"] = {int(str(node), 0): str(eds_path) for node, eds_path in eds.items()}
         except ValueError:
             raise SessionError(f"{where}.eds: expected a mapping of node id to EDS path") from None
+        bad = [node for node in params["eds"] if not 1 <= node <= 127]
+        if bad:
+            raise SessionError(f"{where}.eds: node ids must be 1-127, got {bad[0]}")
     return Binding(decoders, params)

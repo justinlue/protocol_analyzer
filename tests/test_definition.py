@@ -162,3 +162,18 @@ def test_self_containing_type_is_rejected(tmp_path):
     doc["types"] = {"node": [{"name": "y", "type": "node"}]}
     with pytest.raises(DefinitionError, match="contains itself"):
         load_definition(write(tmp_path, doc))
+
+
+def test_hook_fields_take_count(tmp_path):
+    (tmp_path / "hooks.py").write_text("def pair(data):\n    return data[:2].hex(), 2\n")
+    doc = copy.deepcopy(MINIMAL)
+    doc["commands"][1]["fields"] = [{"name": "p", "hook": "hooks.py:pair", "count": "eos"}]
+    d = load_definition(write(tmp_path, doc))
+    assert d.commands[1].variants[0].fields[0].count == "eos"
+
+
+def test_show_cannot_name_the_payload_field(tmp_path):
+    doc = copy.deepcopy(MINIMAL)
+    doc["show"] = ["cmd", "data"]
+    with pytest.raises(DefinitionError, match="payload"):
+        load_definition(write(tmp_path, doc))

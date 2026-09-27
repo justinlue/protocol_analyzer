@@ -135,3 +135,14 @@ def test_cli_shows_sdo_from_fixture(capsys):
     lines = capsys.readouterr().out.splitlines()
     assert len(lines) == 2
     assert lines[1].endswith("data=01 02 03 04")
+
+
+def test_transfer_open_at_end_of_capture_is_reported():
+    d = CanopenDecoder()
+    sdo(d, 5, True, "4008100000000000")
+    sdo(d, 5, False, "410810000A000000")
+    sdo(d, 5, False, "00" + b"ABCDEFG".hex())
+    [m] = d.flush()
+    assert m.name == "sdo_transfer" and m.has_errors
+    assert "incomplete at end of capture" in m.diagnostics[0].text and "7 of 10 bytes" in m.diagnostics[0].text
+    assert d.flush() == []

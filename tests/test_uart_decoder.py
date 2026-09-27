@@ -184,3 +184,10 @@ def test_crc_hook_returning_a_non_integer_is_a_bad_frame(tmp_path):
     (tmp_path / "d.yaml").write_text(text, encoding="utf-8")
     [m] = run(chunks(MOTOR_FRAME), load_definition(tmp_path / "d.yaml"))
     assert m.name == "bad_frame" and "not an integer" in m.diagnostics[0].text
+
+
+def test_unframed_messages_list_their_source_chunks():
+    records = chunks(b"\x01\x02", b"\x03" + MOTOR_FRAME)
+    unframed, frame = run(records)
+    assert unframed.name == "unframed" and unframed.sources == records
+    assert frame.sources == [records[1]]

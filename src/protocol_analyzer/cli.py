@@ -4,6 +4,7 @@ import argparse
 import io
 import os
 import sys
+from pathlib import Path
 
 from .analysis import Analysis
 from .errors import PaError, SessionError
@@ -51,11 +52,13 @@ def cmd_decode(args: argparse.Namespace) -> int:
             raise SessionError("--decoder/--eds cannot be combined with --session")
         session = load_session(args.session)
         if args.capture:
-            session.capture = session.base_dir / args.capture
+            session.capture = Path(args.capture)  # a path typed on the command line is relative to the cwd
     elif not args.capture:
         raise SessionError("decode needs a capture file or --session")
     else:
         session = session_from_args(args.capture, args.decoder, args.eds)
+    if args.time != (None, None) and session.capture.suffix.lower() == ".bin":
+        raise SessionError("--time needs a timestamped capture; .bin captures carry byte offsets only")
     filters = Filters(ids=args.id, nodes=args.node, services=args.service, channels=args.channel,
                       errors_only=args.errors_only, time_range=args.time)
     fmt = jsonl_line if args.format == "jsonl" else table_line

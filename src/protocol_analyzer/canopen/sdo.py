@@ -42,6 +42,18 @@ class SdoTracker:
         cs = d[0] >> 5
         return self._request(cs, node, frame, msg) if request else self._response(cs, node, frame, msg)
 
+    def flush(self) -> list[Message]:
+        """Report transfers still open at the end of the capture."""
+        out = []
+        for node, transfer in self._transfers.items():
+            m = self._completed(node, transfer, transfer.frames[-1])
+            m.diagnostics.clear()
+            expected = "?" if transfer.size is None else transfer.size
+            m.error(f"SDO {transfer.kind} incomplete at end of capture ({len(transfer.data)} of {expected} bytes)")
+            out.append(m)
+        self._transfers.clear()
+        return out
+
     # --- client -> server (0x600 + node) ---
     def _request(self, cs: int, node: int, frame: CanFrame, msg: Message) -> list[Message]:
         d = frame.data

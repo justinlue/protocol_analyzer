@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 
 from .message import Field, Message
 
@@ -48,13 +49,21 @@ def table_line(msg: Message, t0: float | None, absolute: bool = False) -> str:
     return f"{time:>14}  {msg.channel:<6} {msg.protocol:<11} {msg.name:<20} {details(msg)}".rstrip()
 
 
+def _json_value(v: object) -> object:
+    if isinstance(v, (bytes, bytearray)):
+        return v.hex()
+    if isinstance(v, float) and not math.isfinite(v):
+        return "NaN" if math.isnan(v) else ("Infinity" if v > 0 else "-Infinity")  # strict JSON has no NaN
+    return v
+
+
 def field_to_dict(f: Field) -> dict:
     d: dict = {"name": f.name}
     if f.missing:
         d["missing"] = True
         return d
     if f.value is not None:
-        d["value"] = f.value.hex() if isinstance(f.value, (bytes, bytearray)) else f.value
+        d["value"] = _json_value(f.value)
     if f.label is not None:
         d["label"] = f.label
     if f.unit:

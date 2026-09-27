@@ -183,6 +183,9 @@ class _Loader:
         show = doc.get("show", [])
         if not isinstance(show, list) or any(s not in names for s in show):
             self.fail("show", "expected a list of frame field names")
+        payload_name = next(f.name for f in frame if f.role == "payload")
+        if payload_name in show:
+            self.fail("show", f"cannot name the payload field '{payload_name}'; its fields always follow")
         gap = doc.get("gap_ms")
         if gap is not None and not (_is_number(gap) and gap > 0):
             self.fail("gap_ms", "expected a positive number of milliseconds")
@@ -318,9 +321,11 @@ class _Loader:
         if ("type" in raw) == ("hook" in raw):
             self.fail(where, "needs exactly one of 'type' or 'hook'")
         if "hook" in raw:
-            if set(raw) - {"name", "hook"}:
-                self.fail(where, "a hook field takes only name and hook")
+            if set(raw) - {"name", "hook", "count"}:
+                self.fail(where, "a hook field takes only name, hook and count")
             f.hook = self._hook(raw["hook"], f"{where}.hook")
+            if "count" in raw:
+                f.count = self._ref(raw["count"], ints, "eos", f"{where}.count")
             return f
         f.type = raw["type"]
         f.num = numeric_type(f.type)

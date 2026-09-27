@@ -80,3 +80,7 @@ def test_registered_and_usable_from_cli(capsys):
     assert main(["decode", str(FIX / "basic.log"), "--decoder", "canopen", "--service", "heartbeat"]) == 0
     lines = capsys.readouterr().out.splitlines()
     assert len(lines) == 1 and lines[0].endswith("node=5 state=pre-operational")
+
+
+def test_short_emcy_states_the_real_minimum():
+    assert "at least 3 bytes" in dec(0x085, "10").diagnostics[0].text

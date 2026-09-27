@@ -26,6 +26,7 @@ class UartDecoder:
         self._junk = bytearray()  # pending unframed bytes
         self._junk_start = 0
         self._junk_times: tuple[float | None, float | None] = (None, None)
+        self._junk_sources: list[UartChunk] = []
         self._reported_until = 0  # stream offsets below this were already shown in a failed frame
         self._prefix_at: dict[str, int] = {}
         pos = 0
@@ -133,8 +134,16 @@ class UartDecoder:
                 self._junk_start = self._base + fresh_from
                 self._junk_times = (self._time_at(self._junk_start), None)
             self._junk += self._buf[fresh_from:n]
+            for chunk in self._chunks_between(self._base + fresh_from, self._base + n - 1):
+                if not any(chunk is c for c in self._junk_sources):
+                    self._junk_sources.append(chunk)
             self._junk_times = (self._junk_times[0], self._time_at(self._base + n - 1))
         self._consume(n)
+
+    def _chunks_between(self, start: int, end: int) -> list[UartChunk]:
+        i0 = max(bisect.bisect_right(self._offsets, start) - 1, 0)
+        i1 = max(bisect.bisect_right(self._offsets, end) - 1, 0)
+        return self._chunks[i0:i1 + 1]
 
     def _time_at(self, offset: int) -> float | None:
         i = bisect.bisect_right(self._offsets, offset) - 1
@@ -142,10 +151,9 @@ class UartDecoder:
 
     def _message(self, name: str, start: int, size: int, fields: list[Field]) -> Message:
         end = start + size - 1
-        i0 = max(bisect.bisect_right(self._offsets, start) - 1, 0)
-        i1 = max(bisect.bisect_right(self._offsets, end) - 1, 0)
         return Message(self.defn.protocol, name, self._channel, start=self._time_at(start),
-                       end=self._time_at(end), offset=start, fields=fields, sources=self._chunks[i0:i1 + 1])
+                       end=self._time_at(end), offset=start, fields=fields,
+                       sources=self._chunks_between(start, end))
 
     def _truncated(self, reason: str) -> Message:
         raw = bytes(self._buf)
@@ -158,9 +166,11 @@ class UartDecoder:
             return []
         raw = bytes(self._junk)
         m = Message(self.defn.protocol, "unframed", self._channel, start=self._junk_times[0],
-                    end=self._junk_times[1], offset=self._junk_start, fields=[Field("data", raw, raw=raw)])
+                    end=self._junk_times[1], offset=self._junk_start, fields=[Field("data", raw, raw=raw)],
+                    sources=self._junk_sources)
         m.warn(f"{len(raw)} bytes outside any frame")
         self._junk.clear()
+        self._junk_sources = []
         return [m]
 
     # --- frame decoding ---
