@@ -8,6 +8,7 @@ from ..message import Field, Message
 from ..records import CanFrame
 from .cobid import classify
 from .eds import ObjectDictionary
+from .pdo import decode_pdo, pdo_mapping
 from .sdo import SdoTracker
 from .tables import ERROR_REGISTER_BITS, NMT_COMMANDS, NMT_STATES, emcy_text
 
@@ -25,6 +26,12 @@ def _raw(data: bytes) -> Field:
 
 
 class CanopenDecoder:
+    """CANopen on top of CAN frames (predefined connection set).
+
+    PDOs are decoded when the node's EDS/DCF describes their mapping. PDOs moved to
+    non-default COB-IDs via 0x1400/0x1800 are not followed (v1 limitation).
+    """
+
     def __init__(self, ods: dict[int, ObjectDictionary] | None = None) -> None:
         self._ods = ods or {}
         self._sdo = SdoTracker(self._ods)
@@ -131,4 +138,17 @@ class CanopenDecoder:
         return m
 
     def _pdo(self, service: str, node: int | None, frame: CanFrame) -> Message:
-        return canopen_message(frame, service, node, [_raw(frame.data)])
+        od = self._ods.get(node) if node is not None else None
+        mapping = pdo_mapping(od, service) if od is not None else None
+        if od is None or mapping is None:
+            return canopen_message(frame, service, node, [_raw(frame.data)])
+        fields, bits = decode_pdo(od, mapping, frame.data)
+        m = canopen_message(frame, service, node, fields)
+        have = len(frame.data) * 8
+        if not mapping:
+            m.warn(f"{service} has no mapped objects in the EDS")
+        elif bits > have:
+            m.error(f"PDO has {len(frame.data)} bytes, mapping needs {(bits + 7) // 8}")
+        elif have - bits >= 8:
+            m.warn(f"{(have - bits) // 8} bytes beyond the mapping")
+        return m
