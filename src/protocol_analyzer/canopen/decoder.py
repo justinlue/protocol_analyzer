@@ -7,6 +7,7 @@ from ..decoders.can import frame_message
 from ..message import Field, Message
 from ..records import CanFrame
 from .cobid import classify
+from .sdo import SdoTracker
 from .tables import ERROR_REGISTER_BITS, NMT_COMMANDS, NMT_STATES, emcy_text
 
 _CANOPEN_EPOCH = datetime(1984, 1, 1)
@@ -23,6 +24,9 @@ def _raw(data: bytes) -> Field:
 
 
 class CanopenDecoder:
+    def __init__(self) -> None:
+        self._sdo = SdoTracker()
+
     def feed(self, item: Item) -> list[Item]:
         if isinstance(item, Message):
             return [item]
@@ -53,7 +57,7 @@ class CanopenDecoder:
         if service == "heartbeat":
             return [self._heartbeat(node, frame)]
         if service in ("sdo_tx", "sdo_rx"):
-            return [canopen_message(frame, "sdo", node, [_raw(frame.data)])]
+            return self._sdo.decode(frame, node, request=service == "sdo_rx")
         if service == "lss":
             return [canopen_message(frame, "lss", None, [_raw(frame.data)])]
         return [self._pdo(service, node, frame)]
