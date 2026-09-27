@@ -5,6 +5,7 @@
 protocol: example_uart
 description: In-house module-to-module UART protocol (example commands)
 versions: [1]
+show: [src_module, dst_module]   # frame fields that lead each table row
 
 enums:
   modules:
