@@ -17,6 +17,7 @@ class DecoderInfo:
     usage: str
     description: str
     factory: Factory
+    kind: str = "can"  # the Records the decoder reads at the bottom of a stack: "can" | "uart"
 
 
 def _can(arg: str, params: dict, base_dir: Path) -> Decoder:
@@ -47,14 +48,18 @@ REGISTRY: dict[str, DecoderInfo] = {
     "canopen": DecoderInfo("canopen", "canopen [--eds NODE=PATH]",
                            "CANopen: NMT, SYNC, TIME, EMCY, heartbeat, SDO, PDO", _canopen),
     "uart": DecoderInfo("uart", "uart:<definition.yaml>",
-                        "proprietary UART, framed and decoded by a YAML Definition", _uart),
+                        "proprietary UART, framed and decoded by a YAML Definition", _uart, "uart"),
 }
 
 
-def build_decoder(spec: str, params: dict | None = None, base_dir: Path = Path(".")) -> Decoder:
-    name, _, arg = spec.partition(":")
+def decoder_info(spec: str) -> DecoderInfo:
+    name = spec.partition(":")[0]
     info = REGISTRY.get(name)
     if info is None:
         known = ", ".join(sorted(REGISTRY))
         raise SessionError(f"unknown decoder '{name}' (available: {known})")
-    return info.factory(arg, params or {}, base_dir)
+    return info
+
+
+def build_decoder(spec: str, params: dict | None = None, base_dir: Path = Path(".")) -> Decoder:
+    return decoder_info(spec).factory(spec.partition(":")[2], params or {}, base_dir)

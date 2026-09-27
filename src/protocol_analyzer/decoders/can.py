@@ -31,7 +31,28 @@ def frame_message(frame: CanFrame) -> Message:
     shown = [f for f in flags if f != "rtr"]
     if shown:
         msg.summary += f"  ({','.join(shown)})"
+    check_frame(frame, msg)
     return msg
+
+
+def check_frame(frame: CanFrame, msg: Message) -> None:
+    """Attach Diagnostics for frames no CAN controller could have sent (lenient capture parsers pass them)."""
+    if frame.is_error:
+        return
+    bits, limit = (29, 0x1FFFFFFF) if frame.is_extended else (11, 0x7FF)
+    if frame.id > limit:
+        msg.error(f"id 0x{frame.id:X} does not fit in {bits} bits")
+    n = len(frame.data)
+    if frame.is_fd:
+        if n > 64:
+            msg.error(f"CAN FD frame carries {n} bytes (max 64)")
+    elif frame.is_remote:
+        if frame.dlc > 8:
+            msg.warn(f"remote frame with dlc {frame.dlc} (max 8)")
+    elif n > 8:
+        msg.error(f"classic CAN frame carries {n} bytes (max 8)")
+    elif frame.dlc != n:
+        msg.warn(f"dlc {frame.dlc} but {n} data bytes")
 
 
 class CanDecoder:

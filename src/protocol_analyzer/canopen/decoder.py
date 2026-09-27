@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 
 from ..decoders.base import Item
-from ..decoders.can import frame_message
+from ..decoders.can import check_frame, frame_message
 from ..message import Field, Message
 from ..records import CanFrame
 from .cobid import classify
@@ -48,8 +48,13 @@ class CanopenDecoder:
             return [frame_message(item)]
         if item.is_remote:
             name = "node_guard_request" if service == "heartbeat" else f"{service}_rtr"
-            return [canopen_message(item, name, node, [])]
-        return self._decode(service, node, item)
+            out = [canopen_message(item, name, node, [])]
+        else:
+            out = self._decode(service, node, item)
+        for m in out:
+            if m.sources and m.sources[0] is item:
+                check_frame(item, m)
+        return out
 
     def flush(self) -> list[Item]:
         return []
@@ -145,6 +150,9 @@ class CanopenDecoder:
         fields, bits = decode_pdo(od, mapping, frame.data)
         m = canopen_message(frame, service, node, fields)
         have = len(frame.data) * 8
+        for e in mapping:
+            if e.bits == 0:
+                m.warn(f"mapping entry 0x{e.index:04X}sub{e.subindex} has length 0")
         if not mapping:
             m.warn(f"{service} has no mapped objects in the EDS")
         elif bits > have:

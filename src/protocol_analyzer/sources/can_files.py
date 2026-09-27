@@ -11,6 +11,8 @@ from ..records import CanFrame
 
 def read_can_capture(path: Path) -> Iterator[CanFrame]:
     is_asc = path.suffix.lower() == ".asc"
+    if is_asc:
+        _check_asc_header(path)
     reader = can.ASCReader if is_asc else can.CanutilsLogReader
     try:
         for msg in reader(str(path)):
@@ -29,6 +31,17 @@ def read_can_capture(path: Path) -> Iterator[CanFrame]:
             )
     except (ValueError, IndexError, KeyError) as exc:
         raise CaptureError(f"{path}: malformed capture: {exc}") from exc
+
+
+_ASC_HEADERS = ("date ", "base ", "begin triggerblock")
+
+
+def _check_asc_header(path: Path) -> None:
+    # python-can skips ASC lines it cannot parse, so a file of garbage would decode to nothing.
+    with path.open(encoding="utf-8", errors="replace") as f:
+        lines = [line.strip().lower() for line in f if line.strip()]
+    if lines and not any(line.startswith(_ASC_HEADERS) for line in lines):
+        raise CaptureError(f"{path}: not a Vector ASC file (no 'date', 'base' or 'Begin Triggerblock' line)")
 
 
 def _channel(channel: object, is_asc: bool) -> str:

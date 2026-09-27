@@ -49,11 +49,16 @@ def _array(spec: FieldSpec, data: bytes, start: int, types: Types,
         n = spec.count
     else:
         n = ints[spec.count]
+    if n is not None and n < 0:
+        return Field(spec.name, missing=True), start, f"negative count {n} for '{spec.name}'"
     items: list[Field] = []
     pos = start
     while (pos < len(data)) if n is None else (len(items) < n):
+        before = pos
         item, pos, problem = _one(spec, f"[{len(items)}]", data, pos, types, ints)
         items.append(item)
+        if problem is None and n is None and pos == before:
+            problem = f"array '{spec.name}' does not advance: its items consume 0 bytes"
         if problem is not None:
             return Field(spec.name, None, raw=data[start:pos], children=items), pos, problem
     return Field(spec.name, None, raw=data[start:pos], children=items), pos, None
@@ -70,6 +75,10 @@ def _one(spec: FieldSpec, name: str, data: bytes, pos: int, types: Types,
             value, used = spec.hook(data[pos:])
         except Exception as exc:  # user code: report it on the Message instead of aborting the run
             return Field(name, missing=True), pos, f"hook for field '{spec.name}' failed: {exc}"
+        if not isinstance(used, int) or isinstance(used, bool) or not 0 <= used <= len(data) - pos:
+            return Field(name, missing=True), pos, (
+                f"hook for field '{spec.name}' returned an invalid byte count {used!r} "
+                f"({len(data) - pos} bytes remain)")
         return Field(name, value, raw=data[pos:pos + used]), pos + used, None
     if spec.num is not None:
         end = pos + spec.num.size
@@ -86,6 +95,8 @@ def _one(spec: FieldSpec, name: str, data: bytes, pos: int, types: Types,
             size = len(data) - pos
         else:
             size = spec.size if isinstance(spec.size, int) else ints[spec.size]
+        if size < 0:
+            return Field(name, missing=True), pos, f"negative size {size} for '{spec.name}'"
         end = pos + size
         if end > len(data):
             return Field(name, missing=True), pos, _ran_out(spec, data)

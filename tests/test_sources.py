@@ -84,3 +84,20 @@ def test_uart_hex_bad_line_reports_file_and_line(tmp_path):
     p.write_text("0.1 rx AA\n0.2 rx ZZ\n")
     with pytest.raises(CaptureError, match=r"bad\.hex:2"):
         list(open_capture(p))
+
+
+def test_uart_hex_tolerates_non_utf8_comments_and_rejects_binary(tmp_path):
+    p = tmp_path / "ansi.hex"
+    p.write_bytes(b"# temp \xb0C\n0.0 rx aa55\n")
+    assert [c.data for c in open_capture(p)] == [b"\xaa\x55"]
+    b = tmp_path / "blob.txt"
+    b.write_bytes(bytes(range(256)))
+    with pytest.raises(CaptureError, match="blob.txt"):
+        list(open_capture(b))
+
+
+def test_asc_without_any_asc_header_is_rejected(tmp_path):
+    p = tmp_path / "junk.asc"
+    p.write_text("this is garbage\nand more garbage\n")
+    with pytest.raises(CaptureError, match="not a Vector ASC file"):
+        list(open_capture(p))

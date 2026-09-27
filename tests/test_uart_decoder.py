@@ -167,3 +167,20 @@ def test_output_survives_a_non_utf8_stdout(tmp_path):
                              "--decoder", f"uart:{EXAMPLE}"], capture_output=True, env=env)
     assert result.returncode == 0, result.stderr.decode(errors="replace")
     assert "raw=21.5 °C" in result.stdout.decode("utf-8")
+
+
+def test_sync_inside_a_corrupted_frame_is_not_reported_twice():
+    msgs = run(chunks(make_frame(2, bytes(4) + b"\xaa\x55" + bytes(14), bad_crc=True)))
+    assert names(msgs) == ["bad_frame"]
+    cut = MOTOR_FRAME[:15] * 2
+    msgs = run(chunks(cut))
+    assert names(msgs) == ["bad_frame", "unframed"]
+    assert (msgs[1].offset, msgs[1].get("data").value) == (len(MOTOR_FRAME), cut[len(MOTOR_FRAME):])
+
+
+def test_crc_hook_returning_a_non_integer_is_a_bad_frame(tmp_path):
+    (tmp_path / "hooks.py").write_text("def bad(data):\n    return 'x'\n")
+    text = EXAMPLE.read_text(encoding="utf-8").replace("algo: crc16_modbus", "hook: hooks.py:bad")
+    (tmp_path / "d.yaml").write_text(text, encoding="utf-8")
+    [m] = run(chunks(MOTOR_FRAME), load_definition(tmp_path / "d.yaml"))
+    assert m.name == "bad_frame" and "not an integer" in m.diagnostics[0].text

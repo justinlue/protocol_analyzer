@@ -89,3 +89,22 @@ def test_strz_bytes_sized_by_field_and_hooks():
     assert "no zero terminator" in problem
     _, _, problem = decode([FieldSpec("h", hook=lambda d: d[5])], b"\x01")
     assert "hook for field 'h' failed" in problem
+
+
+def test_bad_hook_results_are_problems_not_exceptions():
+    for result in [(1, None), (1, -1), (1, 5), "x"]:
+        _, _, problem = decode([FieldSpec("h", hook=lambda d, r=result: r)], b"\x01\x02")
+        assert problem and "hook for field 'h'" in problem, result
+
+
+def test_items_that_consume_nothing_stop_an_eos_array():
+    spec = FieldSpec("b", type="bytes", size=0, count="eos")
+    fields, _, problem = decode([spec], b"\x01\x02")
+    assert problem and "does not advance" in problem
+
+
+def test_negative_size_from_a_signed_field_is_a_problem():
+    s1 = numeric_type("s1")
+    specs = [FieldSpec("n", type="s1", num=s1), FieldSpec("b", type="bytes", size="n")]
+    _, _, problem = decode(specs, b"\xfe\x09\x09")
+    assert problem and "negative" in problem

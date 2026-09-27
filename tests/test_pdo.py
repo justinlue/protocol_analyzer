@@ -58,3 +58,12 @@ def test_cli_decodes_pdo_with_eds(capsys, tmp_path):
     cap.write_text("(1.000000) can0 185#370618FCFFFF05\n")
     assert main(["decode", str(cap), "--decoder", "canopen", "--eds", f"5={EDS}"]) == 0
     assert "Velocity actual value=-1000" in capsys.readouterr().out
+
+
+def test_zero_length_mapping_entry_is_flagged_not_a_crash(tmp_path):
+    eds = tmp_path / "z.eds"
+    eds.write_text("[1A00]\nParameterName=TPDO1 mapping\n[1A00sub0]\nDataType=0x0005\nDefaultValue=1\n"
+                   "[1A00sub1]\nDataType=0x0007\nDefaultValue=0x606C0000\n"
+                   "[606C]\nParameterName=Velocity\nDataType=0x0004\n")
+    m = feed(0x185, "01", ods={5: load_eds(eds, 5)})
+    assert any("length 0" in d.text for d in m.diagnostics)

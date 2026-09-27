@@ -26,7 +26,7 @@ def _read_bin(path: Path) -> Iterator[UartChunk]:
 
 def _read_hex(path: Path) -> Iterator[UartChunk]:
     offsets: dict[str, int] = {}
-    with path.open(encoding="utf-8") as f:
+    with path.open(encoding="utf-8", errors="replace") as f:
         for lineno, line in enumerate(f, 1):
             text = line.split("#", 1)[0].strip()
             if not text:

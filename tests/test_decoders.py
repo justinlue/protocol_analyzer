@@ -64,3 +64,17 @@ def test_build_decoder():
     assert "can" in REGISTRY
     with pytest.raises(SessionError, match="unknown decoder 'nope'"):
         build_decoder("nope")
+
+
+def test_implausible_frames_carry_diagnostics():
+    assert frame_message(CanFrame(0.0, "c", 0x800, b"\x00", dlc=1)).has_errors  # 11-bit id overflow
+    assert frame_message(CanFrame(0.0, "c", 0x123, b"\x00", dlc=0)).diagnostics  # dlc != data length
+    assert frame_message(CanFrame(0.0, "c", 0x123, bytes(11), dlc=11)).has_errors  # classic > 8 bytes
+    assert frame_message(CanFrame(0.0, "c", 0x123, b"", dlc=99, is_remote=True)).diagnostics
+    assert not frame_message(CanFrame(0.0, "c", 0x123, b"\x01", dlc=1)).diagnostics
+
+
+def test_canopen_frames_get_the_same_sanity_checks():
+    from protocol_analyzer.canopen.decoder import CanopenDecoder
+    [m] = CanopenDecoder().feed(CanFrame(0.0, "c", 0x705, b"\x7f", dlc=0))
+    assert any("dlc" in d.text for d in m.diagnostics)

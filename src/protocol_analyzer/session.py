@@ -59,6 +59,8 @@ def load_session(path: str | Path) -> Session:
         doc = yaml.safe_load(p.read_text(encoding="utf-8"))
     except OSError as exc:
         raise SessionError(f"{p}: cannot read session file: {exc.strerror}") from exc
+    except UnicodeDecodeError:
+        raise SessionError(f"{p}: not UTF-8 text; save the session file as UTF-8") from None
     except yaml.YAMLError as exc:
         raise SessionError(f"{p}: invalid YAML: {exc}") from exc
     if not isinstance(doc, dict) or not isinstance(doc.get("capture"), str):

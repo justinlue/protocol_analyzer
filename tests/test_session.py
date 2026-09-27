@@ -69,3 +69,20 @@ def test_analysis_sets_t0_before_yielding_and_skips_unbound_channels():
     assert a.t0 == 1700000000.0 and first.name == "data"
     rest = list(it)
     assert len(rest) == 6  # 8 frames, minus the first, minus the error frame on channel "?"
+
+
+def test_non_utf8_session_file_is_a_session_error(tmp_path):
+    (tmp_path / "s.yaml").write_bytes(b"\xff\xfecapture: a.log\n")
+    with pytest.raises(SessionError, match="not UTF-8"):
+        load_session(tmp_path / "s.yaml")
+
+
+def test_decoder_must_match_the_capture_kind():
+    with pytest.raises(SessionError, match="reads uart"):
+        list(Analysis(Session(FIX / "basic.log", {ANY_CHANNEL: Binding(["uart:x.yaml"])})).messages())
+
+
+def test_bindings_are_validated_before_reading_even_an_empty_capture():
+    s = session_from_args(FIX / "empty.log", "canopen", ["5=nothere.eds"])
+    with pytest.raises(Exception, match="cannot read EDS"):
+        list(Analysis(s).messages())

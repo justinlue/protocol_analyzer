@@ -91,12 +91,18 @@ class UartDecoder:
             if not complete:
                 if final is None:
                     break
+                if self._base < self._reported_until:
+                    self._skip(1)  # its bytes are already shown in an earlier failed frame
+                    continue
                 out += self._flush_junk()
                 out.append(self._truncated(final))
                 self._reported_until = self._base + len(self._buf)
                 self._skip(1)
                 continue
             msg, ok = self._decode_frame(bytes(self._buf[:total]), length)
+            if not ok and self._base < self._reported_until:
+                self._skip(1)  # a failed candidate inside bytes an earlier failed frame already shows
+                continue
             out += self._flush_junk()
             out.append(msg)
             if ok:
@@ -203,6 +209,9 @@ class UartDecoder:
             expected = crc(covered, spec.crc) if isinstance(spec.crc, CrcParams) else spec.crc(covered)
         except Exception as exc:  # user hook
             msg.error(f"CRC hook failed: {exc}")
+            return False
+        if not isinstance(expected, int) or isinstance(expected, bool):
+            msg.error(f"CRC hook returned {expected!r}, not an integer")
             return False
         got = values[spec.name]
         if got != expected:

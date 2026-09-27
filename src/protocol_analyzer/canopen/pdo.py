@@ -34,7 +34,7 @@ def pdo_mapping(od: ObjectDictionary, service: str) -> list[MapEntry] | None:
 def _typed(data_type: int | None, raw: int, bits: int) -> object:
     if data_type == BOOLEAN:
         return bool(raw)
-    if data_type in SIGNED_TYPES and raw >> (bits - 1) & 1:
+    if data_type in SIGNED_TYPES and bits and raw >> (bits - 1) & 1:
         return raw - (1 << bits)
     if data_type == REAL32 and bits == 32:
         return struct.unpack("<f", raw.to_bytes(4, "little"))[0]

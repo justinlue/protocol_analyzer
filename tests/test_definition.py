@@ -143,3 +143,22 @@ def test_hooks_load_relative_to_the_definition(tmp_path):
     doc["commands"][1]["fields"] = [{"name": "tlv", "hook": "hooks.py:nope"}]
     with pytest.raises(DefinitionError, match="has no function 'nope'"):
         load_definition(write(tmp_path, doc))
+
+
+def test_non_utf8_definition_is_a_definition_error(tmp_path):
+    p = tmp_path / "ansi.yaml"
+    p.write_bytes(yaml.safe_dump(MINIMAL).encode() + b"description: \xb0C\n")
+    with pytest.raises(DefinitionError, match="not UTF-8"):
+        load_definition(p)
+
+
+def test_signed_length_field_is_rejected(tmp_path):
+    with pytest.raises(DefinitionError, match="unsigned"):
+        load_definition(write(tmp_path, _mutate(("frame", 2, "type"), "s1")))
+
+
+def test_self_containing_type_is_rejected(tmp_path):
+    doc = copy.deepcopy(MINIMAL)
+    doc["types"] = {"node": [{"name": "y", "type": "node"}]}
+    with pytest.raises(DefinitionError, match="contains itself"):
+        load_definition(write(tmp_path, doc))

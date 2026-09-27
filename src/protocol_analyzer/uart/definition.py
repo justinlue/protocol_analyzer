@@ -134,6 +134,8 @@ def load_definition(path: str | Path) -> Definition:
         doc = yaml.safe_load(p.read_text(encoding="utf-8"))
     except OSError as exc:
         raise DefinitionError(f"{p}: cannot read definition: {exc.strerror}") from exc
+    except UnicodeDecodeError:
+        raise DefinitionError(f"{p}: not UTF-8 text; save the Definition as UTF-8") from None
     except yaml.YAMLError as exc:
         raise DefinitionError(f"{p}: invalid YAML: {exc}") from exc
     return _Loader(p).load(doc)
@@ -174,6 +176,7 @@ class _Loader:
         raw_types = self._mapping(doc.get("types", {}), "types")
         self.type_names = set(raw_types)
         types = {name: self._fields(spec, f"types.{name}") for name, spec in raw_types.items()}
+        self._check_type_cycles(types)
         frame = self._frame(doc.get("frame"))
         names = [f.name for f in frame]
         commands = self._commands(doc.get("commands", {}), frame)
@@ -187,6 +190,17 @@ class _Loader:
             self.fail("versions", "needs a frame field named 'version'")
         return Definition(self.path, protocol, str(doc.get("description", "")), versions, types, frame,
                           commands, show, gap)
+
+    def _check_type_cycles(self, types: dict[str, list[FieldSpec]]) -> None:
+        def visit(name: str, path: tuple[str, ...]) -> None:
+            for f in types[name]:
+                if f.type in path:
+                    self.fail(f"types.{path[0]}", "contains itself (directly or through other types)")
+                if f.type in types:
+                    visit(f.type, path + (f.type,))
+
+        for name in types:
+            visit(name, (name,))
 
     # --- generic helpers ---
     def _keys(self, d: dict, allowed: set[str], where: str) -> None:
@@ -405,6 +419,8 @@ class _Loader:
                 self.fail(where, f"value 0x{value:X} does not fit in {f.type}")
             f.value = value
         elif role == "length":
+            if f.num.kind != "u":
+                self.fail(where, "the length field needs an unsigned integer type (u1, u2le, ...)")
             if not isinstance(raw.get("of"), str):
                 self.fail(where, "the length field needs of: <payload field>")
             f.of = raw["of"]

@@ -4,9 +4,10 @@ from typing import Iterator
 
 from .decoders.base import DecoderStack
 from .message import Message
-from .registry import build_decoder
+from .errors import SessionError
+from .registry import build_decoder, decoder_info
 from .session import Session
-from .sources import open_capture
+from .sources import capture_kind, open_capture
 
 
 class Analysis:
@@ -17,7 +18,20 @@ class Analysis:
         self.t0: float | None = None
         self._stacks: dict[str, DecoderStack | None] = {}
 
+    def validate(self) -> None:
+        """Check every binding before reading: decoder kind vs Capture kind, and that each stack builds
+        (so a missing Definition or EDS fails even on a Channel that never carries traffic)."""
+        kind = capture_kind(self.session.capture)
+        for channel, binding in self.session.bindings.items():
+            info = decoder_info(binding.decoders[0])
+            if info.kind != kind:
+                raise SessionError(f"channel {channel}: decoder '{binding.decoders[0]}' reads {info.kind} "
+                                   f"Records, but {self.session.capture.name} is a {kind} capture")
+            for spec in binding.decoders:
+                build_decoder(spec, binding.params, self.session.base_dir)
+
     def messages(self) -> Iterator[Message]:
+        self.validate()
         for record in open_capture(self.session.capture):
             if self.t0 is None and record.timestamp is not None:
                 self.t0 = record.timestamp
