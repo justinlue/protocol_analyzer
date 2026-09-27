@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 
 from ..message import Field, Message
 from ..records import CanFrame
+from .eds import ObjectDictionary
 from .tables import sdo_abort_text
 
 
@@ -25,7 +26,8 @@ def _mux(d: bytes) -> tuple[int, int]:
 class SdoTracker:
     """Decodes SDO frames per node and reassembles segmented transfers. Block transfer is v2."""
 
-    def __init__(self) -> None:
+    def __init__(self, ods: dict[int, ObjectDictionary] | None = None) -> None:
+        self._ods = ods or {}
         self._transfers: dict[int, _Transfer] = {}
 
     def decode(self, frame: CanFrame, node: int, request: bool) -> list[Message]:
@@ -148,7 +150,14 @@ class SdoTracker:
 
     # Extension points: Task 8 names objects and decodes values from an EDS.
     def _object(self, node: int, index: int, subindex: int) -> list[Field]:
-        return [Field("index", index, label=f"0x{index:04X}"), Field("subindex", subindex)]
+        fields = [Field("index", index, label=f"0x{index:04X}"), Field("subindex", subindex)]
+        od = self._ods.get(node)
+        name = od.name(index, subindex) if od is not None else None
+        if name:
+            fields.append(Field("object", name))
+        return fields
 
     def _value(self, node: int, index: int, subindex: int, data: bytes) -> Field:
-        return Field("data", data, raw=data)
+        od = self._ods.get(node)
+        value = od.decode(index, subindex, data) if od is not None else None
+        return Field("data", data if value is None else value, raw=data)

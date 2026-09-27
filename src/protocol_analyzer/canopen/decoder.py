@@ -7,6 +7,7 @@ from ..decoders.can import frame_message
 from ..message import Field, Message
 from ..records import CanFrame
 from .cobid import classify
+from .eds import ObjectDictionary
 from .sdo import SdoTracker
 from .tables import ERROR_REGISTER_BITS, NMT_COMMANDS, NMT_STATES, emcy_text
 
@@ -24,8 +25,9 @@ def _raw(data: bytes) -> Field:
 
 
 class CanopenDecoder:
-    def __init__(self) -> None:
-        self._sdo = SdoTracker()
+    def __init__(self, ods: dict[int, ObjectDictionary] | None = None) -> None:
+        self._ods = ods or {}
+        self._sdo = SdoTracker(self._ods)
 
     def feed(self, item: Item) -> list[Item]:
         if isinstance(item, Message):

@@ -27,8 +27,10 @@ def _can(arg: str, params: dict, base_dir: Path) -> Decoder:
 
 def _canopen(arg: str, params: dict, base_dir: Path) -> Decoder:
     from .canopen.decoder import CanopenDecoder
+    from .canopen.eds import load_eds
 
-    return CanopenDecoder()
+    ods = {node: load_eds(base_dir / path, node) for node, path in params.get("eds", {}).items()}
+    return CanopenDecoder(ods)
 
 
 REGISTRY: dict[str, DecoderInfo] = {
