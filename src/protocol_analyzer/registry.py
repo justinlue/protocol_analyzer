@@ -25,8 +25,16 @@ def _can(arg: str, params: dict, base_dir: Path) -> Decoder:
     return CanDecoder()
 
 
+def _canopen(arg: str, params: dict, base_dir: Path) -> Decoder:
+    from .canopen.decoder import CanopenDecoder
+
+    return CanopenDecoder()
+
+
 REGISTRY: dict[str, DecoderInfo] = {
     "can": DecoderInfo("can", "can", "CAN/CAN-FD frame layer: id, flags, dlc, data", _can),
+    "canopen": DecoderInfo("canopen", "canopen [--eds NODE=PATH]",
+                           "CANopen: NMT, SYNC, TIME, EMCY, heartbeat, SDO, PDO", _canopen),
 }
 
 
